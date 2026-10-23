@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<style>
+/*FIGMA_PLUGIN_DS*/
+</style>
+<style>
+  html { color-scheme: light dark; }
+  body { margin: 0; padding: 12px; background: var(--figma-color-bg, #fff); color: var(--figma-color-text, #333); font: 11px/16px Inter, system-ui, sans-serif; }
+  .muted { color: var(--figma-color-text-secondary, #777); }
+  .hero { display: flex; align-items: center; gap: 12px; padding: 12px; border-radius: 6px; box-shadow: inset 0 0 0 1px var(--figma-color-border, rgba(0,0,0,.12)); }
+  .hero .aa { font-size: 28px; line-height: 32px; font-weight: 600; }
+  .hero .ratio { margin-left: auto; text-align: right; font-size: 20px; line-height: 24px; font-weight: 600; font-variant-numeric: tabular-nums; }
+  .hero .ratio small { display: block; font-size: 11px; font-weight: 400; opacity: .85; }
+  .field { display: grid; grid-template-columns: 56px 24px 76px 1fr 28px; align-items: center; gap: 8px; margin-top: 12px; }
+  .field label { color: var(--figma-color-text-secondary, #777); }
+  .swatch { width: 24px; height: 24px; border-radius: 4px; box-shadow: inset 0 0 0 1px var(--figma-color-border, rgba(0,0,0,.15)); }
+  .field .input__field { background: var(--figma-color-bg-secondary, #f5f5f5); color: var(--figma-color-text, #333); font-variant-numeric: tabular-nums; }
+  input[type=range] { width: 100%; margin: 0; accent-color: var(--figma-color-bg-brand, #0d99ff); }
+  .reset { all: unset; cursor: pointer; text-align: center; border-radius: 4px; color: var(--figma-color-text-secondary, #777); }
+  .reset:hover { background: var(--figma-color-bg-hover, rgba(0,0,0,.06)); }
+  .reset[hidden] { display: block; visibility: hidden; }
+  .reset:focus-visible { outline: 2px solid var(--figma-color-border-selected, #0d99ff); }
+  .swap { margin-top: 8px; }
+  .checks { margin-top: 14px; border-top: 1px solid var(--figma-color-border, #e5e5e5); }
+  .check { display: flex; align-items: center; justify-content: space-between; padding: 7px 0; border-bottom: 1px solid var(--figma-color-border, #e5e5e5); }
+  .check.is-current { font-weight: 600; }
+  .check .need { font-weight: 400; margin-left: 6px; }
+  .chip { display: inline-block; min-width: 44px; margin-left: 4px; padding: 1px 6px; border-radius: 3px; text-align: center; font-weight: 600; }
+  .pass { background: #d3f2e0; color: #0b6b36; }
+  .fail { background: #fbdcdc; color: #a11d1d; }
+  @media (prefers-color-scheme: dark) { .pass { background: #123d27; color: #7ee2a8; } .fail { background: #4a1a1a; color: #ff9f9f; } }
+  :root.figma-dark .pass { background: #123d27; color: #7ee2a8; } :root.figma-dark .fail { background: #4a1a1a; color: #ff9f9f; }
+  .fix { all: unset; cursor: pointer; display: block; margin-top: 10px; padding: 6px 8px; border-radius: 4px; background: var(--figma-color-bg-brand-tertiary, #e5f4ff); color: var(--figma-color-text-brand, #0d99ff); }
+  .fix:focus-visible { outline: 2px solid var(--figma-color-border-selected, #0d99ff); }
+  .fix[hidden] { display: none; }
+  .status { margin: 10px 0 0; white-space: pre-line; }
+  .swatch { padding: 0; border: 0; cursor: pointer; }
+  .swatch:focus-visible { outline: 2px solid var(--figma-color-border-selected, #0d99ff); outline-offset: 1px; }
+  .settings { display: flex; justify-content: space-between; margin-top: 12px; }
+  .seg { display: inline-flex; padding: 2px; border-radius: 6px; background: var(--figma-color-bg-secondary, #f0f0f0); }
+  .seg button { all: unset; cursor: pointer; padding: 1px 8px; border-radius: 4px; color: var(--figma-color-text-secondary, #777); }
+  .seg button[aria-pressed=true] { background: var(--figma-color-bg, #fff); color: var(--figma-color-text, #333); font-weight: 600; box-shadow: 0 0 0 1px var(--figma-color-border, rgba(0,0,0,.12)); }
+  .seg button:focus-visible { outline: 2px solid var(--figma-color-border-selected, #0d99ff); }
+  .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+</style>
+</head>
+<body>
+  <div class="hero" id="hero" role="status" aria-live="polite">
+    <span class="aa" aria-hidden="true">Aa</span>
+    <span class="ratio"><span id="ratio">–</span><small id="grade"></small></span>
+  </div>
+
+  <div class="field">
+    <label for="fgHex">Text</label>
+    <button class="swatch" id="fgSwatch" title="Pick from screen" aria-label="Pick text color from screen"></button>
+    <div class="input"><input class="input__field" id="fgHex" maxlength="7" spellcheck="false"></div>
+    <input type="range" id="fgLight" min="0" max="100" step="1" aria-label="Text lightness">
+    <button class="reset" id="fgReset" title="Reset" aria-label="Reset text color">↺</button>
+  </div>
+  <div class="field">
+    <label for="bgHex">Background</label>
+    <button class="swatch" id="bgSwatch" title="Pick from screen" aria-label="Pick background color from screen"></button>
+    <div class="input"><input class="input__field" id="bgHex" maxlength="7" spellcheck="false"></div>
+    <input type="range" id="bgLight" min="0" max="100" step="1" aria-label="Background lightness">
+    <button class="reset" id="bgReset" title="Reset" aria-label="Reset background color">↺</button>
+  </div>
+
+  <button class="fix" id="fix" hidden></button>
+
+  <div class="checks" id="results"></div>
+
+  <div class="settings">
+    <div class="seg" role="group" aria-label="Target level">
+      <button data-level="AA" aria-pressed="true">AA</button><button data-level="AAA" aria-pressed="false">AAA</button>
+    </div>
+    <div class="seg" role="group" aria-label="Text size">
+      <button data-size="auto" aria-pressed="true">Auto</button><button data-size="normal" aria-pressed="false">Normal</button><button data-size="large" aria-pressed="false">Large</button>
+    </div>
+  </div>
+  <p class="status muted" id="status"></p>
+
+<script>/*UI_SCRIPT*/</script>
+</body>
+</html>

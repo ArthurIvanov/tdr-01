@@ -1,0 +1,389 @@
+<style>
+  :root { color-scheme: light dark; }
+  * { box-sizing: border-box; }
+  body {
+    font: 12px/1.4 Inter, system-ui, sans-serif; margin: 0; padding: 12px;
+    background: var(--figma-color-bg, Canvas); color: var(--figma-color-text, CanvasText);
+  }
+  header, .row { display: flex; gap: 8px; align-items: center; }
+  header { margin-bottom: 8px; }
+  .row { margin-bottom: 8px; flex-wrap: wrap; }
+  .grow { flex: 1; }
+  h2 { font-size: 14px; margin: 0; flex: 1; }
+  button, select {
+    font: inherit; padding: 6px 12px; border-radius: 6px; border: 1px solid transparent;
+    background: var(--figma-color-bg-brand, #0d99ff); color: var(--figma-color-text-onbrand, #fff); cursor: pointer;
+  }
+  select { background: var(--figma-color-bg, Canvas); color: inherit; border-color: var(--figma-color-border, #8886); padding: 4px 6px; max-width: 120px; }
+  button.secondary { background: transparent; color: inherit; border-color: var(--figma-color-border, #8886); }
+  button.small { padding: 3px 8px; font-size: 11px; }
+  button:disabled { opacity: .5; cursor: default; }
+  button:focus-visible, select:focus-visible, input:focus-visible, li:focus-visible, summary:focus-visible {
+    outline: 2px solid var(--figma-color-border-selected, #0d99ff); outline-offset: 1px;
+  }
+  label { display: flex; gap: 4px; align-items: center; }
+  #summary { margin: 8px 0; color: var(--figma-color-text-secondary, inherit); }
+  progress { width: 100%; }
+  ul { list-style: none; margin: 0; padding: 0; }
+  li.issue {
+    display: flex; gap: 8px; padding: 8px; margin-bottom: 6px; cursor: pointer;
+    border: 1px solid var(--figma-color-border, #8884); border-radius: 6px;
+  }
+  li.issue:hover { background: var(--figma-color-bg-hover, #8881); }
+  .swatch { width: 36px; height: 36px; border-radius: 4px; border: 1px solid #8886; flex: none; display: grid; place-items: center; font-weight: 700; }
+  .txt { overflow: hidden; flex: 1; min-width: 0; }
+  .txt b, .txt small { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .bad { color: var(--figma-color-text-danger, #d32f2f); font-weight: 600; }
+  .ok { color: var(--figma-color-text-success, #1a7f37); font-weight: 600; }
+  .actions { display: flex; align-items: center; gap: 6px; margin-top: 4px; flex-wrap: wrap; }
+  .dot { width: 12px; height: 12px; border-radius: 50%; border: 1px solid #8886; }
+  .empty { text-align: center; padding: 24px 8px; color: var(--figma-color-text-secondary, inherit); }
+  .confirm { border: 1px solid var(--figma-color-border-warning, #f5a623); border-radius: 6px; padding: 8px; margin-bottom: 8px; }
+  .confirm ul { max-height: 90px; overflow: auto; margin: 6px 0; }
+  details { margin-top: 8px; }
+  summary { cursor: pointer; font-weight: 600; }
+  details li { display: flex; gap: 6px; align-items: center; padding: 4px 0; }
+  details li span { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; }
+  [hidden] { display: none !important; }
+</style>
+<header>
+  <h2 id="title"></h2>
+  <button id="lang" class="secondary small" aria-label="Language"></button>
+</header>
+<div class="row">
+  <label><span id="lblLevel"></span>
+    <select id="level"><option value="AA">AA</option><option value="AAA">AAA</option></select>
+  </label>
+  <label><input type="checkbox" id="nonText"><span id="lblNonText"></span></label>
+  <span class="grow"></span>
+  <button id="scan"></button>
+</div>
+<div id="summary" role="status" aria-live="polite"></div>
+<progress id="progress" hidden></progress>
+
+<div id="tools" hidden>
+  <div class="row">
+    <select id="fSev" aria-label="Severity"></select>
+    <select id="fType" aria-label="Type"></select>
+    <select id="fFrame" aria-label="Frame"></select>
+  </div>
+  <div class="row">
+    <span id="count" class="grow"></span>
+    <button id="fixall" class="small"></button>
+    <button id="csv" class="small secondary">CSV</button>
+    <button id="md" class="small secondary">MD</button>
+  </div>
+</div>
+<div id="confirm" class="confirm" hidden role="alertdialog" aria-labelledby="confirmText">
+  <div id="confirmText"></div>
+  <details><summary id="confirmList"></summary><ul id="confirmItems"></ul></details>
+  <div class="row" style="margin: 6px 0 0">
+    <button id="confirmOk" class="small"></button>
+    <button id="confirmNo" class="small secondary"></button>
+  </div>
+</div>
+
+<ul id="list"></ul>
+<details id="skippedBox" hidden><summary id="skippedTitle"></summary><ul id="skippedList"></ul></details>
+<details id="ignoredBox" hidden><summary id="ignoredTitle"></summary><ul id="ignoredList"></ul></details>
+
+<script>
+const I18N = {
+  en: {
+    title: 'Contrast checker', level: 'Level', nonText: 'Icons & borders (3:1)',
+    scanPage: 'Scan page', scanSel: (n) => `Scan selection (${n})`, hint: 'Select layers to check them, or scan the whole page.',
+    scanning: (a, b) => `Scanning… ${a}/${b}`,
+    summary: (f, c, s, scope) => `${f} failing of ${c} checked in ${scope}; ${s} skipped`,
+    scopeSel: 'selection', scopePage: 'page',
+    allOk: '✓ No contrast issues found', noLayers: 'No layers to check',
+    sevAll: 'All severities', sevCrit: 'Critical (< 3:1)', sevMinor: 'Minor',
+    typeAll: 'All types', typeText: 'Text', typeLarge: 'Large text', typeNon: 'Icons & borders', frameAll: 'All frames',
+    count: (n, k, shown) => `${shown}/${n} shown, ${k} auto-fixable`,
+    fixAll: 'Fix all', fix: 'Fix', fixBg: (h) => `Fix background → ${h}`, editBound: (n) => `Edit “${n}”`, detach: 'Detach & fix',
+    need: (r) => `need ${r}:1`, large: 'large', approx: '≈ approx. (gradient)', apca: 'APCA Lc',
+    ignore: 'Ignore', restore: 'Restore',
+    confirmText: (n) => `Apply fixes to ${n} layers? Bound styles/variables will be detached (changes stay local).`,
+    confirmList: 'Show layers', confirmOk: 'Apply', confirmNo: 'Cancel',
+    skippedTitle: (n) => `Needs manual check (${n})`, ignoredTitle: (n) => `Ignored (${n})`,
+    r_image: 'image backdrop', r_unsupported: 'unsupported backdrop', 'r_fg-unsupported': 'gradient/image fill',
+    left: (n) => `${n} issues left`, allFixed: '✓ All fixed',
+    kindNon: 'icon/border',
+  },
+  ru: {
+    title: 'Проверка контраста', level: 'Уровень', nonText: 'Иконки и границы (3:1)',
+    scanPage: 'Проверить страницу', scanSel: (n) => `Проверить выделение (${n})`, hint: 'Выделите слои для проверки или проверьте всю страницу.',
+    scanning: (a, b) => `Проверка… ${a}/${b}`,
+    summary: (f, c, s, scope) => `${f} нарушений из ${c} проверенных (${scope}); пропущено ${s}`,
+    scopeSel: 'выделение', scopePage: 'страница',
+    allOk: '✓ Нарушений контраста нет', noLayers: 'Нет слоёв для проверки',
+    sevAll: 'Любая серьёзность', sevCrit: 'Критичные (< 3:1)', sevMinor: 'Небольшие',
+    typeAll: 'Все типы', typeText: 'Текст', typeLarge: 'Крупный текст', typeNon: 'Иконки и границы', frameAll: 'Все фреймы',
+    count: (n, k, shown) => `Показано ${shown} из ${n}, исправимо автоматически: ${k}`,
+    fixAll: 'Исправить все', fix: 'Исправить', fixBg: (h) => `Исправить фон → ${h}`, editBound: (n) => `Изменить «${n}»`, detach: 'Отвязать и исправить',
+    need: (r) => `нужно ${r}:1`, large: 'крупный', approx: '≈ приблизительно (градиент)', apca: 'APCA Lc',
+    ignore: 'Игнорировать', restore: 'Вернуть',
+    confirmText: (n) => `Применить исправления к ${n} слоям? Привязанные стили и переменные будут отвязаны (изменения только локальные).`,
+    confirmList: 'Показать слои', confirmOk: 'Применить', confirmNo: 'Отмена',
+    skippedTitle: (n) => `Требует ручной проверки (${n})`, ignoredTitle: (n) => `Игнорируются (${n})`,
+    r_image: 'фон — изображение', r_unsupported: 'фон не поддерживается', 'r_fg-unsupported': 'градиент/изображение в заливке',
+    left: (n) => `Осталось нарушений: ${n}`, allFixed: '✓ Всё исправлено',
+    kindNon: 'иконка/граница',
+  },
+}
+const CONFIRM_OVER = 20
+const $ = (id) => document.getElementById(id)
+const post = (m) => parent.postMessage({ pluginMessage: m }, '*')
+
+let lang = /^ru/i.test(navigator.language) ? 'ru' : 'en'
+let selection = 0
+let busy = false
+let last = null // meta of the last result
+let issues = []
+let skipped = []
+let ignored = []
+let pending = null
+const filters = { sev: 'all', type: 'all', frame: 'all' }
+
+const T = (k, ...a) => { const v = I18N[lang][k]; return typeof v === 'function' ? v(...a) : v }
+
+function el(tag, cls, text) {
+  const e = document.createElement(tag)
+  if (cls) e.className = cls
+  if (text !== undefined) e.textContent = text
+  return e
+}
+
+function fillSelect(sel, options, value) {
+  sel.replaceChildren(...options.map(([v, t]) => { const o = el('option', '', t); o.value = v; return o }))
+  sel.value = value
+}
+
+function applyStaticText() {
+  document.documentElement.lang = lang
+  $('title').textContent = T('title')
+  $('lblLevel').textContent = T('level') + ' '
+  $('lblNonText').textContent = T('nonText')
+  $('scan').textContent = selection ? T('scanSel', selection) : T('scanPage')
+  $('lang').textContent = lang === 'ru' ? 'EN' : 'RU'
+  $('fixall').textContent = T('fixAll')
+  $('confirmList').textContent = T('confirmList')
+  $('confirmOk').textContent = T('confirmOk')
+  $('confirmNo').textContent = T('confirmNo')
+  if (!last && !busy) $('summary').textContent = T('hint')
+}
+
+function settings() { return { level: $('level').value, nonText: $('nonText').checked, lang } }
+
+function setBusy(v) { busy = v; $('scan').disabled = v; $('progress').hidden = !v }
+
+function visibleIssues() {
+  return issues.filter((i) => {
+    if (filters.sev === 'critical' && i.ratio >= 3) return false
+    if (filters.sev === 'minor' && i.ratio < 3) return false
+    if (filters.type === 'text' && (i.kind !== 'text' || i.large)) return false
+    if (filters.type === 'large' && !(i.kind === 'text' && i.large)) return false
+    if (filters.type === 'nontext' && i.kind !== 'nontext') return false
+    if (filters.frame !== 'all' && i.frame !== filters.frame) return false
+    return true
+  })
+}
+
+function toRequest(i, mode) {
+  const bg = mode === 'bg'
+  const f = bg ? i.bgFix : i.fix
+  return {
+    key: i.key, id: i.id, start: i.start, end: i.end, target: i.target, mode,
+    color: f.color, opacity: bg ? 1 : f.opacity, bound: i.bound, bgNodeId: bg ? f.nodeId : undefined,
+  }
+}
+
+function requestFix(items) {
+  if (!items.length) return
+  if (items.length > CONFIRM_OVER) {
+    pending = items
+    $('confirmText').textContent = T('confirmText', items.length)
+    $('confirmItems').replaceChildren(...items.map((r) => {
+      const i = issues.find((x) => x.key === r.key)
+      return el('li', '', i ? `${i.label} — ${i.ratio}:1 → ${i.fix.ratio}:1` : r.key)
+    }))
+    $('confirm').hidden = false
+    $('confirmOk').focus()
+    return
+  }
+  post({ type: 'fix', items })
+}
+
+function renderFilters() {
+  const frames = [...new Set(issues.map((i) => i.frame))].sort()
+  if (filters.frame !== 'all' && !frames.includes(filters.frame)) filters.frame = 'all'
+  fillSelect($('fSev'), [['all', T('sevAll')], ['critical', T('sevCrit')], ['minor', T('sevMinor')]], filters.sev)
+  fillSelect($('fType'), [['all', T('typeAll')], ['text', T('typeText')], ['large', T('typeLarge')], ['nontext', T('typeNon')]], filters.type)
+  fillSelect($('fFrame'), [['all', T('frameAll')], ...frames.map((f) => [f, f])], filters.frame)
+}
+
+function renderIssues() {
+  const list = $('list')
+  list.replaceChildren()
+  const shown = visibleIssues()
+  const fixable = shown.filter((i) => i.fix)
+  $('tools').hidden = issues.length === 0
+  $('count').textContent = T('count', issues.length, issues.filter((i) => i.fix).length, shown.length)
+  $('fixall').disabled = fixable.length === 0
+  $('fixall').onclick = () => requestFix(fixable.map((i) => toRequest(i, 'detach')))
+
+  for (const i of shown) {
+    const li = el('li', 'issue')
+    li.tabIndex = 0
+    const focus = () => post({ type: 'focus', id: i.id })
+    li.onclick = focus
+    li.onkeydown = (e) => { if (e.key === 'Enter' && e.target === li) focus() }
+
+    const sw = el('div', 'swatch', i.kind === 'text' ? 'Aa' : '◐')
+    sw.style.background = i.bg
+    sw.style.color = i.fg
+
+    const txt = el('div', 'txt')
+    const meta = el('small')
+    meta.append(el('span', 'bad', `${i.ratio}:1`),
+      ` (${T('need', i.required)}) · ${i.fg} / ${i.bg} · ${T('apca')} ${Math.abs(i.apca)}` +
+      (i.kind === 'text' ? ` · ${i.fontSize}px${i.large ? ' ' + T('large') : ''}` : ` · ${T('kindNon')}`) +
+      (i.approx ? ` · ${T('approx')}` : ''))
+    txt.append(el('b', '', i.label), meta)
+
+    const actions = el('div', 'actions')
+    const btn = (text, fn) => {
+      const b = el('button', 'small secondary', text)
+      b.onclick = (e) => { e.stopPropagation(); fn() }
+      return b
+    }
+    if (i.fix) {
+      const dot = el('span', 'dot'); dot.style.background = i.fix.hex
+      actions.append(dot, el('span', 'ok', `${i.fix.hex} → ${i.fix.ratio}:1`))
+      if (i.bound) {
+        actions.append(btn(T('editBound', i.bound.name), () => post({ type: 'fix', items: [toRequest(i, 'edit')] })),
+          btn(T('detach'), () => requestFix([toRequest(i, 'detach')])))
+      } else {
+        actions.append(btn(T('fix'), () => requestFix([toRequest(i, 'detach')])))
+      }
+    }
+    if (i.bgFix) actions.append(btn(T('fixBg', i.bgFix.hex), () => requestFix([toRequest(i, 'bg')])))
+    actions.append(btn(T('ignore'), () => ignoreIssue(i)))
+    txt.append(actions)
+
+    li.append(sw, txt)
+    list.append(li)
+  }
+  if (!issues.length && last) {
+    list.append(el('div', 'empty', last.checked ? T('allOk') : T('noLayers')))
+  }
+}
+
+function renderSideLists() {
+  const box = (boxId, titleId, listId, title, rows) => {
+    $(boxId).hidden = rows.length === 0
+    $(titleId).textContent = title
+    $(listId).replaceChildren(...rows)
+  }
+  box('skippedBox', 'skippedTitle', 'skippedList', T('skippedTitle', skipped.length), skipped.map((s) => {
+    const li = el('li')
+    const span = el('span', '', `${s.label} — ${T('r_' + s.reason)}`)
+    span.onclick = () => post({ type: 'focus', id: s.id })
+    li.append(span)
+    return li
+  }))
+  box('ignoredBox', 'ignoredTitle', 'ignoredList', T('ignoredTitle', ignored.length), ignored.map((g) => {
+    const li = el('li')
+    const span = el('span', '', g.label)
+    span.onclick = () => post({ type: 'focus', id: g.id })
+    const b = el('button', 'small secondary', T('restore'))
+    b.onclick = () => {
+      post({ type: 'unignore', id: g.id })
+      ignored = ignored.filter((x) => x.id !== g.id)
+      renderSideLists()
+    }
+    li.append(span, b)
+    return li
+  }))
+}
+
+function ignoreIssue(i) {
+  post({ type: 'ignore', ids: [i.id] })
+  ignored.push({ id: i.id, name: i.name, label: i.label })
+  issues = issues.filter((x) => x.id !== i.id)
+  renderFilters(); renderIssues(); renderSideLists(); renderSummary()
+}
+
+function renderSummary() {
+  if (!last) return
+  $('summary').textContent = T('summary', issues.length, last.checked, skipped.length,
+    last.scope === 'selection' ? T('scopeSel') : T('scopePage'))
+}
+
+function renderAll() { applyStaticText(); renderFilters(); renderIssues(); renderSideLists(); renderSummary() }
+
+const HEAD = ['Node ID', 'Layer', 'Kind', 'Text', 'Frame', 'Foreground', 'Background', 'Contrast', 'Required', 'APCA Lc', 'Font size']
+const toRows = () => issues.map((i) => [i.id, i.name, i.kind, i.label, i.frame, i.fg, i.bg, i.ratio, i.required, i.apca, i.fontSize || ''])
+
+function download(name, mime, content) {
+  const a = document.createElement('a')
+  a.href = URL.createObjectURL(new Blob([content], { type: mime }))
+  a.download = name
+  a.click()
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000)
+}
+$('csv').onclick = () => {
+  const q = (v) => `"${String(v).replace(/"/g, '""')}"`
+  download('contrast-report.csv', 'text/csv', '﻿' + [HEAD, ...toRows()].map((r) => r.map(q).join(',')).join('\n'))
+}
+$('md').onclick = () => {
+  const q = (v) => String(v).replace(/\|/g, '\\|').replace(/\n/g, ' ')
+  const lines = [`| ${HEAD.join(' | ')} |`, `|${HEAD.map(() => '---').join('|')}|`, ...toRows().map((r) => `| ${r.map(q).join(' | ')} |`)]
+  download('contrast-report.md', 'text/markdown', lines.join('\n') + '\n')
+}
+
+$('scan').onclick = () => {
+  setBusy(true); last = null; skipped = []; ignored = []
+  $('list').replaceChildren(); $('tools').hidden = true; $('confirm').hidden = true
+  renderSideLists()
+  post({ type: 'scan', settings: settings() })
+}
+$('lang').onclick = () => { lang = lang === 'ru' ? 'en' : 'ru'; renderAll() }
+$('confirmOk').onclick = () => { $('confirm').hidden = true; post({ type: 'fix', items: pending }); pending = null }
+$('confirmNo').onclick = () => { $('confirm').hidden = true; pending = null }
+for (const [id, key] of [['fSev', 'sev'], ['fType', 'type'], ['fFrame', 'frame']]) {
+  $(id).onchange = (e) => { filters[key] = e.target.value; renderIssues() }
+}
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !$('confirm').hidden) $('confirmNo').click() })
+
+onmessage = (e) => {
+  const m = e.data.pluginMessage
+  if (!m) return
+  if (m.type === 'settings') {
+    $('level').value = m.settings.level
+    $('nonText').checked = m.settings.nonText
+    if (m.settings.lang) lang = m.settings.lang
+    selection = m.selection
+    renderAll()
+  } else if (m.type === 'selection') {
+    selection = m.count
+    applyStaticText()
+  } else if (m.type === 'progress') {
+    $('progress').max = m.total
+    $('progress').value = m.done
+    $('summary').textContent = T('scanning', m.done, m.total)
+  } else if (m.type === 'result') {
+    setBusy(false)
+    last = { scope: m.scope, checked: m.checked }
+    issues = m.issues; skipped = m.skipped; ignored = m.ignored
+    filters.sev = 'all'; filters.type = 'all'; filters.frame = 'all'
+    renderAll()
+  } else if (m.type === 'fixed') {
+    issues = issues.filter((i) => !m.keys.includes(i.key))
+    renderFilters(); renderIssues()
+    $('summary').textContent = issues.length ? T('left', issues.length) : T('allFixed')
+  }
+}
+
+applyStaticText()
+post({ type: 'ready' })
+</script>
